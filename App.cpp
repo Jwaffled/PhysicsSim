@@ -1,9 +1,9 @@
 #include "App.h"
 #include "Components/Components.h"
 #include <iostream>
-#include <chrono>
 
 Coordinator gCoordinator;
+constexpr int PHYSICS_UPDATE_HZ = 60;
 
 App& App::WithFPS(const int frames) {
     fps = frames;
@@ -17,12 +17,10 @@ App& App::WithResolution(const int x, const int y) {
 }
 
 /* TODO
- *  Fix timestep
  *  Add collisions based on conservation of energy/momentum
  *      - Sweep and prune
  *      - Maybe bounding volume hierarchy
  *  Create "smoother" circles when rendering (anti-aliasing? whatever it's called)
- *  RUN PHYSICS AT A FIXED RATE, THEN LERP BETWEEN FRAMES
  */
 
 bool App::InitSDL() {
@@ -107,7 +105,7 @@ void App::Run() {
                                                       .WithPosition(500, 170));
         gCoordinator.AddComponent<MotionComponent>(entity2,
                                                    MotionComponent()
-                                                   .WithVelocity(-20, 20));
+                                                   .WithVelocity(10, 40));
         gCoordinator.AddComponent<RenderComponent>(entity2,
                                                    RenderComponent()
                                                    .WithColor(255, 255, 0, 255));
@@ -117,18 +115,36 @@ void App::Run() {
     SDL_Event e;
     bool quit = false;
 
-    const double dt = 1.0 / fps;
+    const double dt = 1.0 / PHYSICS_UPDATE_HZ;
+    Uint32 currentTime = SDL_GetTicks();
+    double accumulator = 0.0;
+    State state;
+    bool captureNewState = false;
 
     while(!quit) {
-        while(SDL_PollEvent(&e)) {
-            if( e.type == SDL_QUIT ) quit = true;
+        Uint32 newTime = SDL_GetTicks();
+        auto frameTime = newTime - currentTime;
+        if(frameTime > 250) {
+            frameTime = 250;
         }
-        gravitationalSystem->Update();
+        currentTime = newTime;
+        accumulator += frameTime / 1000.0;
 
+        while(accumulator >= dt) {
+            gravitationalSystem->Update();
+            physicsMotionSystem->Update(state, dt);
+            captureNewState = true;
+            accumulator -= dt;
+        }
+        while(SDL_PollEvent(&e)) {
+            if(e.type == SDL_QUIT) quit = true;
+        }
 
-        physicsMotionSystem->Update(dt);
-        renderSystem->Update();
-        SDL_Delay(dt * 1000);
+        const double alpha = accumulator / dt;
+
+        renderSystem->Update(state, captureNewState, alpha);
+        captureNewState = false;
+        SDL_Delay((1.0 / fps) * 1000);
     }
 
     Destroy();
@@ -137,10 +153,7 @@ void App::Run() {
 void App::Destroy() {
     SDL_DestroyWindow(window);
     SDL_DestroyRenderer(renderer);
-    SDL_FreeSurface(screenSurface);
-    window = nullptr;
-    renderer = nullptr;
-    screenSurface = nullptr;
+
 
     SDL_Quit();
 }

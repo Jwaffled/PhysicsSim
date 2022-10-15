@@ -83,8 +83,8 @@ public:
         os << "x: " << vec.x << " y: " << vec.y;
         return os;
     }
-    
-    float length() {
+
+    float length() const {
         return std::sqrt(x * x + y * y);
     }
 };

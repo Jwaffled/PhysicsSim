@@ -2,7 +2,7 @@
 
 int main(int argc, char* argv[]) {
     App app = App()
-            .WithFPS(240)
+            .WithFPS(144)
             .WithResolution(1200, 800);
 
     if(!app.InitSDL()) {

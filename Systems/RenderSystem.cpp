@@ -8,11 +8,20 @@ void RenderSystem::Init(SDL_Renderer* rend) {
     renderer = rend;
 }
 
-void RenderSystem::Update() {
+void RenderSystem::Update(const State& state, bool captureNewState, double alpha) {
     SDL_RenderClear(renderer);
+    if(captureNewState) {
+        previousState = currentState;
+        currentState = state.positions;
+    }
     for(auto const& entity : entities) {
         auto render = gCoordinator.GetComponent<RenderComponent>(entity);
         auto transform = gCoordinator.GetComponent<TransformComponent>(entity);
+        Vec2d interpolated = transform.position;
+
+        if(previousState.contains(entity)) {
+           interpolated = currentState[entity] * alpha + previousState[entity] * (1.0 - alpha);
+        }
 
         SDL_SetRenderDrawColor(renderer, render.r, render.g, render.b, render.a);
 
@@ -24,7 +33,7 @@ void RenderSystem::Update() {
                 int dy = RADIUS - h; // vertical offset
                 if ((dx*dx + dy*dy) <= (RADIUS * RADIUS))
                 {
-                    SDL_RenderDrawPoint(renderer, transform.position.x + dx, transform.position.y + dy);
+                    SDL_RenderDrawPoint(renderer, interpolated.x + dx, interpolated.y + dy);
                 }
             }
         }
